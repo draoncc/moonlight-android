@@ -12,6 +12,8 @@
 
 static OpusMSDecoder* Decoder;
 static OPUS_MULTISTREAM_CONFIGURATION OpusConfig;
+static int AudioCodec;
+static int PcmFrameBytes;
 
 static JavaVM *JVM;
 static pthread_key_t JniEnvKey;
@@ -86,7 +88,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_init(JNIEnv *env, jclass clazz) {
     BridgeDrStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrStop", "()V");
     BridgeDrCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrCleanup", "()V");
     BridgeDrSubmitDecodeUnitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeDrSubmitDecodeUnit", "([BIIIICJJ)I");
-    BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(III)I");
+    BridgeArInitMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArInit", "(IIII)I");
     BridgeArStartMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStart", "()V");
     BridgeArStopMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArStop", "()V");
     BridgeArCleanupMethod = (*env)->GetStaticMethodID(env, clazz, "bridgeArCleanup", "()V");
@@ -204,22 +206,33 @@ int BridgeArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusCon
     JNIEnv* env = GetThreadEnv();
     int err;
 
-    err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeArInitMethod, audioConfiguration, opusConfig->sampleRate, opusConfig->samplesPerFrame);
+    err = (*env)->CallStaticIntMethod(env, GlobalBridgeClass, BridgeArInitMethod, audioConfiguration,
+                                      opusConfig->sampleRate, opusConfig->samplesPerFrame, opusConfig->audioCodec);
     if ((*env)->ExceptionCheck(env)) {
         // This is called on a Java thread, so it's safe to return
         err = -1;
     }
     if (err == 0) {
         memcpy(&OpusConfig, opusConfig, sizeof(*opusConfig));
-        Decoder = opus_multistream_decoder_create(opusConfig->sampleRate,
-                                                  opusConfig->channelCount,
-                                                  opusConfig->streams,
-                                                  opusConfig->coupledStreams,
-                                                  opusConfig->mapping,
-                                                  &err);
-        if (Decoder == NULL) {
-            (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeArCleanupMethod);
-            return -1;
+        AudioCodec = opusConfig->audioCodec;
+        Decoder = NULL;
+
+        if (AudioCodec == AUDIO_CODEC_PCM) {
+            // PCM audio packets are already interleaved little-endian int16 samples in the
+            // channel order Android expects, so no decoder is needed.
+            PcmFrameBytes = opusConfig->channelCount * opusConfig->samplesPerFrame * (int)sizeof(jshort);
+        }
+        else {
+            Decoder = opus_multistream_decoder_create(opusConfig->sampleRate,
+                                                      opusConfig->channelCount,
+                                                      opusConfig->streams,
+                                                      opusConfig->coupledStreams,
+                                                      opusConfig->mapping,
+                                                      &err);
+            if (Decoder == NULL) {
+                (*env)->CallStaticVoidMethod(env, GlobalBridgeClass, BridgeArCleanupMethod);
+                return -1;
+            }
         }
 
         // We know ahead of time what the buffer size will be for decoded audio, so pre-allocate it
@@ -244,7 +257,10 @@ void BridgeArStop(void) {
 void BridgeArCleanup() {
     JNIEnv* env = GetThreadEnv();
 
-    opus_multistream_decoder_destroy(Decoder);
+    if (Decoder != NULL) {
+        opus_multistream_decoder_destroy(Decoder);
+        Decoder = NULL;
+    }
 
     (*env)->DeleteGlobalRef(env, DecodedAudioBuffer);
 
@@ -256,12 +272,26 @@ void BridgeArDecodeAndPlaySample(char* sampleData, int sampleLength) {
 
     jshort* decodedData = (*env)->GetPrimitiveArrayCritical(env, DecodedAudioBuffer, NULL);
 
-    int decodeLen = opus_multistream_decode(Decoder,
+    int decodeLen;
+    if (AudioCodec == AUDIO_CODEC_PCM) {
+        // Copy the samples straight through. A lost packet (NULL payload) plays as silence,
+        // as does a payload of unexpected size, so we never play garbage.
+        if (sampleData != NULL && sampleLength == PcmFrameBytes) {
+            memcpy(decodedData, sampleData, PcmFrameBytes);
+        }
+        else {
+            memset(decodedData, 0, PcmFrameBytes);
+        }
+        decodeLen = OpusConfig.samplesPerFrame;
+    }
+    else {
+        decodeLen = opus_multistream_decode(Decoder,
                                             (const unsigned char*)sampleData,
                                             sampleLength,
                                             decodedData,
                                             OpusConfig.samplesPerFrame,
                                             0);
+    }
     if (decodeLen > 0) {
         // We must release the array elements before making further JNI calls
         (*env)->ReleasePrimitiveArrayCritical(env, DecodedAudioBuffer, decodedData, 0);
@@ -460,7 +490,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
                                                            jint audioConfiguration, jint supportedVideoFormats,
                                                            jint clientRefreshRateX100,
                                                            jbyteArray riAesKey, jbyteArray riAesIv,
-                                                           jint videoCapabilities,
+                                                           jint videoCapabilities, jint audioCapabilities,
                                                            jint colorSpace, jint colorRange) {
     SERVER_INFORMATION serverInfo = {
             .address = (*env)->GetStringUTFChars(env, address, 0),
@@ -493,6 +523,7 @@ Java_com_limelight_nvstream_jni_MoonBridge_startConnection(JNIEnv *env, jclass c
     (*env)->ReleaseByteArrayElements(env, riAesIv, riAesIvBuf, JNI_ABORT);
 
     BridgeVideoRendererCallbacks.capabilities = videoCapabilities;
+    BridgeAudioRendererCallbacks.capabilities = CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION | audioCapabilities;
 
     // Enable all encryption features if the platform has fast AES support
     if (hasFastAes()) {

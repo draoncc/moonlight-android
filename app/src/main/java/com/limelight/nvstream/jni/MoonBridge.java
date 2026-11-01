@@ -41,6 +41,10 @@ public class MoonBridge {
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC = 2;
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC = 4;
     public static final int CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 = 0x40;
+    public static final int CAPABILITY_PCM_AUDIO = 0x80;
+
+    public static final int AUDIO_CODEC_OPUS = 0;
+    public static final int AUDIO_CODEC_PCM = 1;
 
     public static final int DR_OK = 0;
     public static final int DR_NEED_IDR = -1;
@@ -228,7 +232,22 @@ public class MoonBridge {
         }
     }
 
-    public static int bridgeArInit(int audioConfiguration, int sampleRate, int samplesPerFrame) {
+    // Audio codec and channel layout negotiated for the current session (set when the
+    // audio renderer is initialized). Null configuration means no session has set up audio yet.
+    private static volatile int negotiatedAudioCodec = AUDIO_CODEC_OPUS;
+    private static volatile AudioConfiguration negotiatedAudioConfiguration;
+
+    public static int getNegotiatedAudioCodec() {
+        return negotiatedAudioCodec;
+    }
+
+    public static AudioConfiguration getNegotiatedAudioConfiguration() {
+        return negotiatedAudioConfiguration;
+    }
+
+    public static int bridgeArInit(int audioConfiguration, int sampleRate, int samplesPerFrame, int audioCodec) {
+        negotiatedAudioCodec = audioCodec;
+        negotiatedAudioConfiguration = new AudioConfiguration(audioConfiguration);
         if (audioRenderer != null) {
             return audioRenderer.setup(new AudioConfiguration(audioConfiguration), sampleRate, samplesPerFrame);
         }
@@ -347,7 +366,7 @@ public class MoonBridge {
                                               int audioConfiguration, int supportedVideoFormats,
                                               int clientRefreshRateX100,
                                               byte[] riAesKey, byte[] riAesIv,
-                                              int videoCapabilities,
+                                              int videoCapabilities, int audioCapabilities,
                                               int colorSpace, int colorRange);
 
     public static native void stopConnection();

@@ -24,6 +24,7 @@ public class StreamConfiguration {
     private int maxPacketSize;
     private int remote;
     private MoonBridge.AudioConfiguration audioConfiguration;
+    private int audioCodec;
     private int supportedVideoFormats;
     private int attachedGamepadMask;
     private int encryptionFlags;
@@ -125,6 +126,12 @@ public class StreamConfiguration {
             config.audioConfiguration = audioConfig;
             return this;
         }
+
+        // Preferred audio codec. PCM audio is only used if the host also offers it.
+        public StreamConfiguration.Builder setAudioCodec(int audioCodec) {
+            config.audioCodec = audioCodec;
+            return this;
+        }
         
         public StreamConfiguration.Builder setSupportedVideoFormats(int supportedVideoFormats) {
             config.supportedVideoFormats = supportedVideoFormats;
@@ -166,6 +173,7 @@ public class StreamConfiguration {
         this.sops = true;
         this.enableAdaptiveResolution = false;
         this.audioConfiguration = MoonBridge.AUDIO_CONFIGURATION_STEREO;
+        this.audioCodec = MoonBridge.AUDIO_CODEC_OPUS;
         this.supportedVideoFormats = MoonBridge.VIDEO_FORMAT_H264;
         this.attachedGamepadMask = 0;
         this.enableUltraLowLatency = false;
@@ -229,6 +237,14 @@ public class StreamConfiguration {
 
     public MoonBridge.AudioConfiguration getAudioConfiguration() {
         return audioConfiguration;
+    }
+
+    public int getAudioCodec() {
+        return audioCodec;
+    }
+
+    public int getAudioCapabilities() {
+        return audioCodec == MoonBridge.AUDIO_CODEC_PCM ? MoonBridge.CAPABILITY_PCM_AUDIO : 0;
     }
     
     public int getSupportedVideoFormats() {
