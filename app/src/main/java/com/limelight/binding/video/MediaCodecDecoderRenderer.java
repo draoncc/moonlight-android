@@ -15,6 +15,7 @@ import org.jcodec.codecs.h264.io.model.VUIParameters;
 
 import com.limelight.BuildConfig;
 import com.limelight.LimeLog;
+import com.limelight.binding.audio.AudioOverlayText;
 import com.limelight.R;
 import com.limelight.nvstream.av.video.VideoDecoderRenderer;
 import com.limelight.nvstream.jni.MoonBridge;
@@ -1453,6 +1454,8 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
 
                 float decodeTimeMs = (float)lastTwo.decoderTimeMs / lastTwo.totalFramesReceived;
                 long rttInfo = MoonBridge.getEstimatedRttInfo();
+                String audioText = AudioOverlayText.format(context,
+                        MoonBridge.getNegotiatedAudioCodec(), MoonBridge.getNegotiatedAudioConfiguration());
                 StringBuilder sb = new StringBuilder();
                 if(prefs.enablePerfOverlayLite){
                     if(TrafficStatsHelper.getPackageRxBytes(Process.myUid()) != TrafficStats.UNSUPPORTED){
@@ -1479,11 +1482,17 @@ public class MediaCodecDecoderRenderer extends VideoDecoderRenderer implements C
                     sb.append(context.getString(R.string.perf_overlay_lite_netdrops,(float)lastTwo.framesLost / lastTwo.totalFrames * 100));
                     sb.append("\t FPS：");
                     sb.append(context.getString(R.string.perf_overlay_lite_fps,fps.totalFps));
+                    if (audioText != null) {
+                        sb.append("\t ").append(audioText);
+                    }
 //                    sb.append("\n");
 //                    sb.append(context.getString(R.string.perf_overlay_lite_decoder,decoder));
                 }else{
                     sb.append(context.getString(R.string.perf_overlay_streamdetails, initialWidth + "x" + initialHeight, fps.totalFps)).append('\n');
                     sb.append(context.getString(R.string.perf_overlay_decoder, decoder)).append('\n');
+                    if (audioText != null) {
+                        sb.append(audioText).append('\n');
+                    }
                     sb.append(context.getString(R.string.perf_overlay_incomingfps, fps.receivedFps)).append('\n');
                     sb.append(context.getString(R.string.perf_overlay_renderingfps, fps.renderedFps)).append('\n');
                     sb.append(context.getString(R.string.perf_overlay_netdrops,
