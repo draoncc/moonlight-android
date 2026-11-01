@@ -221,7 +221,7 @@
     <string name="summary_audio_config_list">Enable 5.1 or 7.1 surround sound for home-theater systems</string>
     <string name="title_checkbox_enable_audiofx">Enable system equalizer support</string>
     <string name="title_audio_codec_list">Audio codec</string>
-    <string name="summary_audio_codec_list">PCM audio sends the host\'s audio without compression when the host supports it (Apollo), otherwise Opus audio is used. PCM audio uses about 1.5 Mbps in stereo, 4.6 Mbps in 5.1 and 6.1 Mbps in 7.1. Choose Opus on constrained networks.</string>
+    <string name="summary_audio_codec_list">PCM audio sends the host\'s audio bit-for-bit when the host supports it (Apollo), otherwise Opus audio is used. PCM audio uses about 1.5 / 4.6 / 6.1 Mbps for stereo / 5.1 / 7.1. Choose Opus on constrained networks.</string>
     <string name="audiocodec_opus">Opus</string>
     <string name="audiocodec_pcm">PCM</string>
     <string name="summary_checkbox_enable_audiofx">Allows audio effects to function while streaming, but may increase audio latency</string>

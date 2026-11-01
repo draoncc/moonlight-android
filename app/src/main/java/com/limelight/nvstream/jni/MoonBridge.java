@@ -233,9 +233,16 @@ public class MoonBridge {
     }
 
     // Audio codec and channel layout negotiated for the current session (set when the
-    // audio renderer is initialized). Null configuration means no session has set up audio yet.
+    // audio renderer is initialized). Null configuration means this session hasn't set up audio yet;
+    // both are reset when a session starts and when it is cleaned up.
     private static volatile int negotiatedAudioCodec = AUDIO_CODEC_OPUS;
     private static volatile AudioConfiguration negotiatedAudioConfiguration;
+
+    private static void resetNegotiatedAudio() {
+        // Clear the configuration first, so a reader that sees the reset codec also sees no configuration
+        negotiatedAudioConfiguration = null;
+        negotiatedAudioCodec = AUDIO_CODEC_OPUS;
+    }
 
     public static int getNegotiatedAudioCodec() {
         return negotiatedAudioCodec;
@@ -351,12 +358,14 @@ public class MoonBridge {
         MoonBridge.videoRenderer = videoRenderer;
         MoonBridge.audioRenderer = audioRenderer;
         MoonBridge.connectionListener = connectionListener;
+        resetNegotiatedAudio();
     }
 
     public static void cleanupBridge() {
         MoonBridge.videoRenderer = null;
         MoonBridge.audioRenderer = null;
         MoonBridge.connectionListener = null;
+        resetNegotiatedAudio();
     }
 
     public static native int startConnection(String address, String appVersion, String gfeVersion,
