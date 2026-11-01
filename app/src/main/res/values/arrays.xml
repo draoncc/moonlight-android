@@ -54,6 +54,15 @@
         <item>71</item>
     </string-array>
 
+    <string-array name="audio_codec_names">
+        <item>@string/audiocodec_pcm</item>
+        <item>@string/audiocodec_opus</item>
+    </string-array>
+    <string-array name="audio_codec_values" translatable="false">
+        <item>pcm</item>
+        <item>opus</item>
+    </string-array>
+
     <!-- Don't forget to update locales_config.xml when you modify this! -->
     <string-array name="language_names" translatable="false">
         <item>Default</item>
